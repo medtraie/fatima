@@ -772,7 +772,22 @@ const Factory = () => {
         supabaseService.getAll<DebtSettlement>('debt_settlements'),
         supabaseService.getAll<Invoice>('factory_invoices'),
       ]);
-      setFactoryOperations(ops);
+      
+      const localOps = JSON.parse(localStorage.getItem('local_factory_operations') || '[]');
+      let mergedOps = [...ops];
+      localOps.forEach((localOp: any) => {
+        if (!mergedOps.some(o => String(o.id) === String(localOp.id))) {
+          mergedOps.push(localOp);
+        } else {
+          // If exists, prefer local if it has more data (like receivedBottles)
+          const existingIdx = mergedOps.findIndex(o => String(o.id) === String(localOp.id));
+          if (localOp.receivedBottles?.length > (mergedOps[existingIdx].receivedBottles?.length || 0)) {
+            mergedOps[existingIdx] = localOp;
+          }
+        }
+      });
+
+      setFactoryOperations(mergedOps);
       setDebtSettlements(settlements);
       setInvoices(invs);
     })();
@@ -1167,9 +1182,11 @@ const Factory = () => {
   const deleteFactoryOperation = async (operationId: string | number) => {
     if (!window.confirm(tr("Êtes-vous sûr de vouloir supprimer cette opération ?", 'هل أنت متأكد من حذف هذه العملية؟'))) return;
     const ok = await supabaseService.delete('factory_operations', operationId);
-    if (ok) {
-      setFactoryOperations(prev => prev.filter(op => String(op.id) !== String(operationId)));
-    }
+    setFactoryOperations(prev => {
+      const next = prev.filter(op => String(op.id) !== String(operationId));
+      localStorage.setItem('local_factory_operations', JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleEditSupplier = (supplier: Supplier) => {
@@ -1273,7 +1290,11 @@ const Factory = () => {
 
     const created = await supabaseService.create<FactoryOperation>('factory_operations', operation);
     const nextOperation = created || operation;
-    setFactoryOperations(prev => [...prev, nextOperation]);
+    setFactoryOperations(prev => {
+      const next = [...prev, nextOperation];
+      localStorage.setItem('local_factory_operations', JSON.stringify(next));
+      return next;
+    });
     setCurrentOperation(nextOperation);
     setSendForm({
       date: new Date(),
@@ -1369,9 +1390,19 @@ const Factory = () => {
       debtChange,
       receivedDate: returnForm.date ? returnForm.date.toISOString() : new Date().toISOString(),
     });
-    if (updated) {
-      setFactoryOperations(prev => prev.map(op => (String(op.id) === String(operation.id) ? updated : op)));
-    }
+    
+    const finalUpdatedOperation = updated || {
+      ...operation,
+      receivedBottles,
+      debtChange,
+      receivedDate: returnForm.date ? returnForm.date.toISOString() : new Date().toISOString(),
+    };
+
+    setFactoryOperations(prev => {
+      const next = prev.map(op => (String(op.id) === String(operation.id) ? finalUpdatedOperation : op));
+      localStorage.setItem('local_factory_operations', JSON.stringify(next));
+      return next;
+    });
 
     // Update stock with received bottles (full bottles go to inventory)
     const receptionDate = returnForm.date ? returnForm.date.toISOString() : new Date().toISOString();
