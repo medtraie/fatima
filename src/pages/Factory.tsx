@@ -1380,8 +1380,8 @@ const Factory = () => {
         const currentBT = bottleTypes.find(bt => String(bt.id) === String(bottle.bottleTypeId));
         if (!currentBT) return;
 
-        const currentRemaining = Number(currentBT.remainingQuantity ?? 0);
-        const currentTotal = Number(currentBT.totalQuantity ?? 0);
+        const currentRemaining = Number(currentBT.remainingQuantity ?? (currentBT as any).remainingquantity ?? 0);
+        const currentTotal = Number(currentBT.totalQuantity ?? (currentBT as any).totalquantity ?? 0);
         const qty = Number(bottle.quantity || 0);
         const nextTotal = currentTotal + qty;
         const nextRemaining = currentRemaining + qty;
